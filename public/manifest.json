@@ -11,7 +11,7 @@
     }
   ],
   "start_url": ".",
-  "display": "standalone",
+  "display": "fullscreen",
   "theme_color": "#991b1b",
   "background_color": "#991b1b",
   "description": "Sistema de gestão de validade de produtos farmacêuticos."

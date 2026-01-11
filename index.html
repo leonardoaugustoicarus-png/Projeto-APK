@@ -3,7 +3,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
     <title>PEX - Controle de Validade</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#991b1b">
@@ -21,6 +21,8 @@
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
+            /* Previne scroll elástico no iOS para parecer mais nativo */
+            overscroll-behavior-y: contain;
         }
         
         @keyframes shimmer {
@@ -103,6 +105,13 @@
 <body class="bg-red-700 text-yellow-300">
     <div id="root"></div>
     <script>
+        // Tenta esconder a barra de URL em navegadores móveis rolando a página
+        window.addEventListener("load", function() {
+            setTimeout(function() {
+                window.scrollTo(0, 1);
+            }, 0);
+        });
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
