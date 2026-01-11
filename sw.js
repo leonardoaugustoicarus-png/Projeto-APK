@@ -1,8 +1,8 @@
 
 const CACHE_NAME = 'pex-v2-cache';
 const urlsToCache = [
-  '/',
-  '/index.html',
+  './',
+  './index.html',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap'
 ];

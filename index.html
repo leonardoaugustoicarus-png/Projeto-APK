@@ -3,89 +3,79 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PEX - Controle de Validade</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#991b1b">
     
-    <!-- iOS support -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="PEX">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/883/883360.png">
-
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
-            /* Previne scroll elástico no iOS para parecer mais nativo */
-            overscroll-behavior-y: contain;
+            background-color: #450a0a;
+            overflow-x: hidden;
         }
         
+        /* Scrollbar Estilo Desktop */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2d0606;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ea580c;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #f97316;
+        }
+
         @keyframes shimmer {
             0% { transform: translateX(-100%); }
             100% { transform: translateX(100%); }
         }
 
         .animate-in {
-            animation-duration: 600ms;
-            animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            animation-duration: 400ms;
+            animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
         }
-        .fade-in {
-            animation-name: fadeIn;
-        }
-        .zoom-in-elastic {
-            animation: zoomElastic 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .slide-in-from-bottom-4 {
-            animation-name: slideInFromBottom;
-        }
+        .fade-in { animation-name: fadeIn; }
+        .zoom-in-elastic { animation: zoomIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes slideInFromBottom {
-            from { transform: translateY(1rem); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        @keyframes zoomElastic {
-            from { transform: scale(0.8); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-
-        /* Efeito de pulsação para o botão de instalação */
-        @keyframes pulse-gold {
-            0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(234, 179, 8, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
-        }
-        .animate-pulse-gold {
-            animation: pulse-gold 2s infinite;
-        }
-
-        /* Alerta Crítico Intenso */
         @keyframes alert-pulse-intense {
-            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px #ef4444); color: #fecaca; }
-            50% { transform: scale(1.25); filter: drop-shadow(0 0 8px #ef4444); color: #ffffff; }
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px #ef4444); }
+            50% { transform: scale(1.05); filter: drop-shadow(0 0 8px #ef4444); }
         }
         .animate-alert-intense {
-            animation: alert-pulse-intense 1s infinite cubic-bezier(0.4, 0, 0.6, 1);
+            animation: alert-pulse-intense 1s infinite;
         }
 
-        /* Animação para nova linha na tabela */
-        @keyframes new-item-arrival {
-            0% { transform: translateX(30px); opacity: 0; background-color: rgba(234, 179, 8, 0.3); }
-            50% { background-color: rgba(234, 179, 8, 0.1); }
-            100% { transform: translateX(0); opacity: 1; background-color: transparent; }
+        /* Efeito de destaque e slide-in para novas linhas no inventário */
+        @keyframes row-added {
+            0% {
+                opacity: 0;
+                transform: translateY(-20px);
+                background-color: rgba(234, 179, 8, 0.5);
+            }
+            50% {
+                opacity: 1;
+                background-color: rgba(234, 179, 8, 0.3);
+            }
+            100% {
+                transform: translateY(0);
+                background-color: transparent;
+            }
         }
         .animate-new-row {
-            animation: new-item-arrival 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            animation: row-added 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
         }
     </style>
 <script type="importmap">
@@ -102,23 +92,7 @@
 }
 </script>
 </head>
-<body class="bg-red-700 text-yellow-300">
+<body class="text-yellow-100 antialiased">
     <div id="root"></div>
-    <script>
-        // Tenta esconder a barra de URL em navegadores móveis rolando a página
-        window.addEventListener("load", function() {
-            setTimeout(function() {
-                window.scrollTo(0, 1);
-            }, 0);
-        });
-
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW registrado'))
-                    .catch(err => console.log('Erro no SW', err));
-            });
-        }
-    </script>
 </body>
 </html>

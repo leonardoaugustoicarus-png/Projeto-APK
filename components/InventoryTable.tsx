@@ -147,11 +147,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                           />
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-1 font-black text-sm text-yellow-400 uppercase tracking-tight">
-                            <Hash size={12} className="text-orange-500/70" aria-hidden="true" />
+                          <div 
+                            className="inline-flex items-center gap-1 font-bold text-[11px] text-yellow-500/60 uppercase tracking-wider hover:bg-orange-500/20 hover:text-yellow-400 px-1.5 py-0.5 rounded transition-all cursor-default"
+                            title="Lote do Produto"
+                          >
+                            <Hash size={10} className="text-orange-500/50" aria-hidden="true" />
                             {p.batch || 'S/ LOTE'}
                           </div>
-                          <div className="font-mono text-[10px] tracking-tighter opacity-40 mt-0.5 pl-4">{p.barcode}</div>
+                          <div className="font-mono text-[10px] tracking-tighter opacity-40 mt-0.5 pl-1.5">{p.barcode}</div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-black text-sm uppercase tracking-tight group-hover:text-yellow-400 transition-colors">{p.name}</div>
