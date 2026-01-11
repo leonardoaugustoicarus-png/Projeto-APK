@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Calendar, Barcode, Package, AlertCircle, Hash } from 'lucide-react';
-import { Product } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { X, Save, Calendar, Barcode, Package, AlertCircle, Hash, Info, ChevronRight } from 'lucide-react';
+import { Product, ProductStatus } from '../types';
+import { calculateDaysToExpiry, getStatusFromDays } from '../utils/dateUtils';
 
 interface ProductFormProps {
   onClose: () => void;
@@ -26,6 +27,14 @@ export const ProductForm: React.FC<ProductFormProps> = ({ onClose, onSubmit, ini
 
   const today = new Date().toISOString().split('T')[0];
 
+  // Preview de status em tempo real
+  const expiryPreview = useMemo(() => {
+    if (!formData.expiryDate) return null;
+    const days = calculateDaysToExpiry(formData.expiryDate);
+    const status = getStatusFromDays(days);
+    return { days, status };
+  }, [formData.expiryDate]);
+
   useEffect(() => {
     if (initialData) {
       setFormData(initialData);
@@ -36,223 +45,178 @@ export const ProductForm: React.FC<ProductFormProps> = ({ onClose, onSubmit, ini
     return () => clearTimeout(timer);
   }, [initialData]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab' && modalRef.current) {
-        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
-        );
-        
-        if (focusableElements.length === 0) return;
-
-        const firstElement = focusableElements[0];
-        const lastElement = focusableElements[focusableElements.length - 1];
-
-        if (e.shiftKey) { 
-          if (document.activeElement === firstElement) {
-            e.preventDefault();
-            lastElement.focus();
-          }
-        } else { 
-          if (document.activeElement === lastElement) {
-            e.preventDefault();
-            firstElement.focus();
-          }
-        }
-      }
-      
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
   const validate = (): boolean => {
     const newErrors: { name?: string; expiryDate?: string } = {};
-    
-    if (!formData.name?.trim()) {
-      newErrors.name = 'O nome do produto é obrigatório.';
-    }
-    
-    if (!formData.expiryDate) {
-      newErrors.expiryDate = 'A data de validade é obrigatória.';
-    } else {
-      const selectedDate = new Date(formData.expiryDate);
-      const currentDate = new Date();
-      currentDate.setHours(0, 0, 0, 0);
-      
-      if (selectedDate < currentDate) {
-        newErrors.expiryDate = 'A validade não pode ser anterior a hoje.';
-      }
-    }
-
+    if (!formData.name?.trim()) newErrors.name = 'Nome obrigatório.';
+    if (!formData.expiryDate) newErrors.expiryDate = 'Data obrigatória.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
-      onSubmit(formData);
-    }
+    if (validate()) onSubmit(formData);
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-red-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-    >
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
       <div 
         ref={modalRef}
-        className="bg-red-800 border-4 border-orange-500 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-elastic duration-300"
+        className="bg-[#2d0606] border border-orange-500/30 rounded-3xl shadow-[0_0_80px_rgba(0,0,0,0.8)] w-full max-w-2xl overflow-hidden animate-in zoom-in-elastic duration-500"
       >
-        <header className="bg-orange-600 p-4 flex justify-between items-center shadow-lg">
-          <h2 id="modal-title" className="text-white font-black uppercase flex items-center gap-2 text-sm tracking-widest">
-            {initialData ? 'Editar Registro' : 'Novo Produto'}
-          </h2>
-          <button 
-            onClick={onClose} 
-            className="text-white hover:rotate-90 transition-transform p-1 rounded-md focus:ring-4 focus:ring-yellow-400 focus:outline-none"
-            aria-label="Fechar formulário"
-          >
-            <X size={24} aria-hidden="true" />
+        <header className="bg-gradient-to-r from-red-950 to-red-900 p-6 flex justify-between items-center border-b border-orange-500/20">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-orange-600 rounded-2xl shadow-lg shadow-orange-900/40">
+              <Package className="text-white" size={24} />
+            </div>
+            <div>
+              <h2 className="text-white font-black uppercase text-lg tracking-tight">
+                {initialData ? 'Atualizar Registro' : 'Novo Produto'}
+              </h2>
+              <p className="text-orange-500/60 text-[10px] font-black uppercase tracking-widest">Painel de Cadastro de Insumos</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-orange-500 transition-colors">
+            <X size={28} />
           </button>
         </header>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-5">
-            {/* 1. Barcode */}
-            <div className="col-span-2 space-y-2">
-              <label htmlFor="barcode" className="text-yellow-400 text-[10px] font-black uppercase tracking-widest block pl-1">Código de Barras</label>
-              <div className="relative group">
-                <Barcode aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4 group-focus-within:text-yellow-400 transition-colors" />
+        <form onSubmit={handleSubmit} className="p-8 space-y-8">
+          {/* Seção 1: Identificação */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-orange-500/50 mb-2">
+              <ChevronRight size={14} strokeWidth={3} />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Identificação Principal</span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField label="Código de Barras" icon={<Barcode size={16} />}>
                 <input 
-                  id="barcode"
                   type="text" 
                   ref={barcodeInputRef}
-                  className="w-full bg-red-950/50 border-2 border-orange-900/50 rounded-xl py-3 pl-12 pr-4 text-yellow-300 focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 outline-none font-mono text-sm transition-all"
+                  className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-4 px-12 text-yellow-400 font-mono text-sm outline-none focus:border-orange-500 transition-all input-glow"
                   value={formData.barcode}
                   onChange={(e) => setFormData({...formData, barcode: e.target.value})}
                   placeholder="0000000000000"
                 />
-              </div>
-            </div>
+              </FormField>
 
-            {/* 2. Lote (Positioned before Product Name) */}
-            <div className="col-span-2 space-y-2">
-              <label htmlFor="batch" className="text-yellow-400 text-[10px] font-black uppercase tracking-widest block pl-1">Lote (Opcional)</label>
-              <div className="relative group">
-                <Hash aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4 group-focus-within:text-yellow-400 transition-colors" />
+              <FormField label="Número do Lote" icon={<Hash size={16} />}>
                 <input 
-                  id="batch"
                   type="text" 
-                  className="w-full bg-red-950/50 border-2 border-orange-900/50 rounded-xl py-3 pl-12 pr-4 text-yellow-300 focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 outline-none uppercase font-bold text-sm transition-all"
+                  className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-4 px-12 text-yellow-400 font-bold text-sm outline-none focus:border-orange-500 transition-all input-glow uppercase"
                   value={formData.batch}
                   onChange={(e) => setFormData({...formData, batch: e.target.value})}
-                  placeholder="Ex: L88921"
+                  placeholder="EX: L-2025/01"
                 />
+              </FormField>
+
+              <div className="md:col-span-2">
+                <FormField label="Nome / Descrição do Medicamento *" icon={<Info size={16} />}>
+                  <input 
+                    type="text" 
+                    className={`w-full bg-black/40 border-2 rounded-2xl py-4 px-6 text-white font-black text-base outline-none focus:border-orange-500 transition-all input-glow uppercase placeholder:text-white/10 ${errors.name ? 'border-red-500' : 'border-white/5'}`}
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    placeholder="DIGITE O NOME COMPLETO"
+                  />
+                  {errors.name && <span className="text-red-500 text-[9px] font-black uppercase mt-1 block tracking-widest">{errors.name}</span>}
+                </FormField>
               </div>
-            </div>
-
-            {/* 3. Name */}
-            <div className="col-span-2 space-y-2">
-              <label htmlFor="name" className="text-yellow-400 text-[10px] font-black uppercase tracking-widest block pl-1">Nome do Produto *</label>
-              <input 
-                id="name"
-                type="text" 
-                className={`w-full bg-red-950/50 border-2 rounded-xl py-3 px-4 text-yellow-300 focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 outline-none uppercase font-black text-sm transition-all ${errors.name ? 'border-red-500 bg-red-900/30' : 'border-orange-900/50'}`}
-                value={formData.name}
-                onChange={(e) => {
-                  setFormData({...formData, name: e.target.value});
-                  if (errors.name) setErrors({...errors, name: undefined});
-                }}
-                placeholder="NOME DO MEDICAMENTO OU PRODUTO"
-              />
-              {errors.name && (
-                <p className="text-red-400 text-[10px] font-bold flex items-center gap-1.5 mt-1.5 animate-in slide-in-from-left-1">
-                  <AlertCircle size={12} strokeWidth={3} /> {errors.name}
-                </p>
-              )}
-            </div>
-
-            {/* 4. Quantity */}
-            <div className="space-y-2">
-              <label htmlFor="quantity" className="text-yellow-400 text-[10px] font-black uppercase tracking-widest block pl-1">Qtd</label>
-              <div className="relative group">
-                <Package aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4 group-focus-within:text-yellow-400 transition-colors" />
-                <input 
-                  id="quantity"
-                  type="number" 
-                  min="0"
-                  className="w-full bg-red-950/50 border-2 border-orange-900/50 rounded-xl py-3 pl-12 pr-4 text-yellow-300 focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 outline-none font-black text-sm transition-all"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({...formData, quantity: Number(e.target.value)})}
-                />
-              </div>
-            </div>
-
-            {/* 5. ExpiryDate */}
-            <div className="space-y-2">
-              <label htmlFor="expiryDate" className="text-yellow-400 text-[10px] font-black uppercase tracking-widest block pl-1">Vencimento *</label>
-              <div className="relative group">
-                <Calendar aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4 group-focus-within:text-yellow-400 transition-colors" />
-                <input 
-                  id="expiryDate"
-                  type="date" 
-                  min={today}
-                  className={`w-full bg-red-950/50 border-2 rounded-xl py-3 pl-12 pr-4 text-yellow-300 focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 outline-none text-sm transition-all ${errors.expiryDate ? 'border-red-500 bg-red-900/30' : 'border-orange-900/50'}`}
-                  value={formData.expiryDate}
-                  onChange={(e) => {
-                    setFormData({...formData, expiryDate: e.target.value});
-                    if (errors.expiryDate) setErrors({...errors, expiryDate: undefined});
-                  }}
-                />
-              </div>
-              {errors.expiryDate && (
-                <p className="text-red-400 text-[10px] font-bold flex items-center gap-1.5 mt-1.5 animate-in slide-in-from-left-1">
-                  <AlertCircle size={12} strokeWidth={3} /> {errors.expiryDate}
-                </p>
-              )}
-            </div>
-
-            {/* 6. Observations */}
-            <div className="col-span-2 space-y-2">
-              <label htmlFor="observations" className="text-yellow-400 text-[10px] font-black uppercase tracking-widest block pl-1">Notas / Observações</label>
-              <textarea 
-                id="observations"
-                className="w-full bg-red-950/50 border-2 border-orange-900/50 rounded-xl py-3 px-4 text-yellow-300 focus:border-yellow-500 focus:ring-4 focus:ring-yellow-500/10 outline-none h-24 resize-none text-sm transition-all placeholder:text-orange-900/50"
-                value={formData.observations}
-                onChange={(e) => setFormData({...formData, observations: e.target.value})}
-                placeholder="Informações adicionais como tipo de armazenamento..."
-              />
             </div>
           </div>
 
-          <footer className="pt-4 flex gap-3">
+          {/* Seção 2: Logística e Prazos */}
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <div className="flex items-center gap-2 text-orange-500/50 mb-2">
+              <ChevronRight size={14} strokeWidth={3} />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Controle Logístico</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <FormField label="Estoque Atual" icon={<Package size={16} />}>
+                <input 
+                  type="number" 
+                  min="0"
+                  className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-4 px-12 text-yellow-400 font-black text-lg outline-none focus:border-orange-500 transition-all input-glow"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({...formData, quantity: Number(e.target.value)})}
+                />
+              </FormField>
+
+              <div className="md:col-span-2">
+                <FormField label="Data de Vencimento *" icon={<Calendar size={16} />}>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      min={today}
+                      className={`w-full bg-black/40 border-2 rounded-2xl py-4 px-12 text-yellow-400 font-black text-sm outline-none focus:border-orange-500 transition-all input-glow ${errors.expiryDate ? 'border-red-500' : 'border-white/5'}`}
+                      value={formData.expiryDate}
+                      onChange={(e) => setFormData({...formData, expiryDate: e.target.value})}
+                    />
+                    {expiryPreview && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 animate-in fade-in zoom-in">
+                        <span className="text-[9px] font-black text-white/30 uppercase mr-2">{expiryPreview.days} dias</span>
+                        <StatusPill status={expiryPreview.status} />
+                      </div>
+                    )}
+                  </div>
+                </FormField>
+              </div>
+            </div>
+          </div>
+
+          {/* Observações */}
+          <FormField label="Observações de Armazenamento" icon={<AlertCircle size={16} />}>
+            <textarea 
+              className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-4 px-6 text-yellow-200/60 font-medium text-sm outline-none focus:border-orange-500 transition-all input-glow h-24 resize-none"
+              value={formData.observations}
+              onChange={(e) => setFormData({...formData, observations: e.target.value})}
+              placeholder="Ex: Armazenar entre 2°C e 8°C..."
+            />
+          </FormField>
+
+          <footer className="pt-6 flex flex-col sm:flex-row gap-4">
             <button 
               type="submit"
-              className="flex-1 bg-gradient-to-b from-orange-500 to-orange-700 hover:from-orange-400 hover:to-orange-600 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-xl border-b-4 border-orange-900 active:translate-y-1 active:border-b-0 focus:ring-4 focus:ring-orange-500/50 focus:outline-none uppercase tracking-widest text-xs"
-              aria-label="Salvar produto no inventário"
+              className="flex-1 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-2xl shadow-orange-950/40 border-b-4 border-orange-800 active:translate-y-1 active:border-b-0 uppercase tracking-[0.2em] text-xs"
             >
-              <Save size={18} aria-hidden="true" strokeWidth={3} />
-              Confirmar Registro
+              <Save size={20} strokeWidth={3} />
+              Finalizar Registro
             </button>
             <button 
               type="button"
               onClick={onClose}
-              className="px-8 bg-red-950 text-white/70 font-black rounded-xl hover:bg-red-900 hover:text-white transition-all border border-orange-900/30 active:scale-95 focus:ring-4 focus:ring-white/10 focus:outline-none uppercase tracking-widest text-[10px]"
-              aria-label="Cancelar e fechar formulário"
+              className="px-10 bg-red-950/40 text-orange-500 hover:text-white font-black rounded-2xl hover:bg-red-900/60 transition-all border border-orange-500/20 active:scale-95 uppercase tracking-[0.2em] text-[10px]"
             >
-              Sair
+              Descartar
             </button>
           </footer>
         </form>
       </div>
     </div>
   );
+};
+
+const FormField: React.FC<{ label: string; icon: React.ReactNode; children: React.ReactNode }> = ({ label, icon, children }) => (
+  <div className="space-y-2 relative group">
+    <label className="text-orange-500/70 text-[10px] font-black uppercase tracking-widest pl-1 flex items-center gap-2">
+      {label}
+    </label>
+    <div className="relative">
+      <div className="absolute left-4 top-[1.25rem] text-orange-500/30 group-focus-within:text-orange-500 transition-colors pointer-events-none">
+        {icon}
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+const StatusPill: React.FC<{ status: ProductStatus }> = ({ status }) => {
+  const colors = {
+    [ProductStatus.EXPIRED]: 'bg-red-500',
+    [ProductStatus.CRITICAL]: 'bg-yellow-500',
+    [ProductStatus.SAFE]: 'bg-green-500'
+  };
+  return <div className={`w-3 h-3 rounded-full ${colors[status]} shadow-[0_0_10px_currentColor] animate-pulse`} />;
 };

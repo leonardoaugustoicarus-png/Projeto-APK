@@ -16,66 +16,54 @@
             margin: 0;
             padding: 0;
             background-color: #450a0a;
+            background-image: 
+                radial-gradient(circle at 50% 50%, #581c1c 0%, transparent 80%),
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 25px 25px, 25px 25px;
             overflow-x: hidden;
+            min-height: 100vh;
         }
         
-        /* Scrollbar Estilo Desktop */
+        /* Scrollbar Estilo Desktop Premium */
         ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
         }
         ::-webkit-scrollbar-track {
-            background: #2d0606;
+            background: rgba(0,0,0,0.2);
         }
         ::-webkit-scrollbar-thumb {
-            background: #ea580c;
-            border-radius: 4px;
+            background: linear-gradient(to bottom, #f97316, #991b1b);
+            border-radius: 10px;
+            border: 2px solid #450a0a;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #f97316;
-        }
-
-        @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+            background: #fb923c;
         }
 
         .animate-in {
-            animation-duration: 400ms;
-            animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+            animation-duration: 500ms;
+            animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
         }
         .fade-in { animation-name: fadeIn; }
-        .zoom-in-elastic { animation: zoomIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .zoom-in-elastic { animation: zoomIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        @keyframes alert-pulse-intense {
-            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px #ef4444); }
-            50% { transform: scale(1.05); filter: drop-shadow(0 0 8px #ef4444); }
-        }
-        .animate-alert-intense {
-            animation: alert-pulse-intense 1s infinite;
-        }
-
-        /* Efeito de destaque e slide-in para novas linhas no inventário */
         @keyframes row-added {
-            0% {
-                opacity: 0;
-                transform: translateY(-20px);
-                background-color: rgba(234, 179, 8, 0.5);
-            }
-            50% {
-                opacity: 1;
-                background-color: rgba(234, 179, 8, 0.3);
-            }
-            100% {
-                transform: translateY(0);
-                background-color: transparent;
-            }
+            0% { opacity: 0; transform: translateX(-20px); background-color: rgba(234, 179, 8, 0.4); }
+            100% { opacity: 1; transform: translateX(0); background-color: transparent; }
         }
         .animate-new-row {
-            animation: row-added 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+            animation: row-added 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+        }
+
+        /* Efeito Glow para inputs focados */
+        .input-glow:focus {
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.2);
+            border-color: #f97316 !important;
         }
     </style>
 <script type="importmap">
