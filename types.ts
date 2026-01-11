@@ -8,6 +8,7 @@ export enum ProductStatus {
 export interface Product {
   id: string;
   barcode: string;
+  batch?: string;
   name: string;
   quantity: number;
   expiryDate: string;

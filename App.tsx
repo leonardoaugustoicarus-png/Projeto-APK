@@ -4,10 +4,22 @@ import { Layout } from './components/Layout';
 import { InventoryTable } from './components/InventoryTable';
 import { ProductForm } from './components/ProductForm';
 import { Dashboard } from './components/Dashboard';
+import { ConfirmDialog, ConfirmVariant } from './components/ConfirmDialog';
+import { AIAdviceModal } from './components/AIAdviceModal';
 import { Product, ProductStatus } from './types';
 import { calculateDaysToExpiry, getStatusFromDays } from './utils/dateUtils';
 import { generatePDF } from './services/pdfService';
-import { Search, Plus, FileText, Calendar, Filter, ChevronDown, ChevronUp, FilterX, Sparkles, Keyboard, Trash2 } from 'lucide-react';
+import { getPharmaceuticalAdvice } from './services/geminiService';
+import { Search, Plus, FileText, Calendar, Filter, ChevronDown, ChevronUp, FilterX, Sparkles, Keyboard, Trash2, Database, CheckSquare } from 'lucide-react';
+
+interface ConfirmationState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  variant: ConfirmVariant;
+  confirmLabel: string;
+}
 
 const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(() => {
@@ -20,9 +32,24 @@ const App: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProductStatus | ''>('');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [lastAddedId, setLastAddedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+
+  // IA State
+  const [aiModal, setAiModal] = useState({ isOpen: false, productName: '', advice: '', loading: false });
+
+  // Modal de Confirmação customizado
+  const [confirmState, setConfirmState] = useState<ConfirmationState>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'danger',
+    confirmLabel: 'Confirmar'
+  });
 
   // Persistence
   useEffect(() => {
@@ -31,8 +58,12 @@ const App: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           p.barcode.includes(searchTerm);
+      const name = p.name || '';
+      const barcode = p.barcode || '';
+      const batch = p.batch || '';
+      const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           barcode.includes(searchTerm) ||
+                           batch.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesStartDate = !startDate || p.expiryDate >= startDate;
       const matchesEndDate = !endDate || p.expiryDate <= endDate;
@@ -68,9 +99,11 @@ const App: React.FC = () => {
         status 
       } as Product : p));
     } else {
+      const newId = Math.random().toString(36).substr(2, 9);
       const newProduct: Product = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: newId,
         barcode: data.barcode || '',
+        batch: data.batch || '',
         name: data.name || '',
         quantity: Number(data.quantity) || 0,
         expiryDate: expiry,
@@ -79,30 +112,131 @@ const App: React.FC = () => {
         status: status
       };
       setProducts(prev => [...prev, newProduct]);
+      setLastAddedId(newId);
+      
+      // Limpa o realce após a animação
+      setTimeout(() => setLastAddedId(null), 2000);
     }
     setShowForm(false);
     setEditingProduct(undefined);
   };
 
+  const handleLoadSampleData = () => {
+    const today = new Date();
+    const addDays = (days: number) => {
+      const d = new Date();
+      d.setDate(today.getDate() + days);
+      return d.toISOString().split('T')[0];
+    };
+
+    const samples: Product[] = [
+      { id: 's1', name: 'Amoxicilina 500mg', barcode: '789123456001', batch: 'L123', quantity: 15, expiryDate: addDays(-5), daysToExpiry: -5, status: ProductStatus.EXPIRED, observations: 'Manter em local seco' },
+      { id: 's2', name: 'Paracetamol 750mg', barcode: '789123456002', batch: 'L456', quantity: 40, expiryDate: addDays(10), daysToExpiry: 10, status: ProductStatus.CRITICAL, observations: '' },
+      { id: 's3', name: 'Ibuprofeno 600mg', barcode: '789123456003', batch: 'L789', quantity: 22, expiryDate: addDays(25), daysToExpiry: 25, status: ProductStatus.CRITICAL, observations: 'Frágil' },
+      { id: 's4', name: 'Dipirona Sódica 500mg', barcode: '789123456004', batch: 'L012', quantity: 100, expiryDate: addDays(200), daysToExpiry: 200, status: ProductStatus.SAFE, observations: '' },
+      { id: 's5', name: 'Loratadina 10mg', barcode: '789123456005', batch: 'L345', quantity: 30, expiryDate: addDays(400), daysToExpiry: 400, status: ProductStatus.SAFE, observations: '' },
+    ];
+
+    setConfirmState({
+      isOpen: true,
+      title: 'Carregar Exemplos?',
+      message: 'Isso irá adicionar 5 produtos fictícios ao seu inventário para demonstração. Dados existentes não serão removidos.',
+      variant: 'info',
+      confirmLabel: 'Carregar',
+      onConfirm: () => setProducts(prev => [...prev, ...samples])
+    });
+  };
+
   const handleDeleteProduct = (id: string) => {
-    if (confirm('Deseja realmente excluir este produto?')) {
-      setProducts(prev => prev.filter(p => p.id !== id));
-    }
+    const product = products.find(p => p.id === id);
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Produto?',
+      message: `Você está prestes a remover "${product?.name}" permanentemente do inventário. Esta ação não pode ser desfeita.`,
+      variant: 'danger',
+      confirmLabel: 'Excluir Agora',
+      onConfirm: () => {
+        setProducts(prev => prev.filter(p => p.id !== id));
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Selecionados?',
+      message: `Você está prestes a remover PERMANENTEMENTE os ${selectedIds.size} produtos selecionados. Esta ação não pode ser desfeita.`,
+      variant: 'danger',
+      confirmLabel: 'Excluir Selecionados',
+      onConfirm: () => {
+        setProducts(prev => prev.filter(p => !selectedIds.has(p.id)));
+        setSelectedIds(new Set());
+      }
+    });
+  };
+
+  const handleSellProduct = (id: string) => {
+    const product = products.find(p => p.id === id);
+    setConfirmState({
+      isOpen: true,
+      title: 'Confirmar Venda?',
+      message: `O produto "${product?.name}" será removido do controle de validade para registrar a saída de estoque.`,
+      variant: 'warning',
+      confirmLabel: 'Baixar Estoque',
+      onConfirm: () => {
+        setProducts(prev => prev.filter(p => p.id !== id));
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    });
+  };
+
+  const handleDeleteExpired = () => {
+    const count = stats.expired;
+    if (count === 0) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Limpar Todos os Vencidos?',
+      message: `Você está prestes a remover PERMANENTEMENTE todos os ${count} produtos com data de validade vencida. Esta operação não pode ser desfeita.`,
+      variant: 'danger',
+      confirmLabel: 'Excluir Vencidos',
+      onConfirm: () => {
+        setProducts(prev => prev.filter(p => p.status !== ProductStatus.EXPIRED));
+        setSelectedIds(new Set());
+      }
+    });
   };
 
   const handleDeleteFiltered = useCallback(() => {
     if (filteredProducts.length === 0) return;
     const count = filteredProducts.length;
-    if (confirm(`CUIDADO: Deseja excluir PERMANENTEMENTE os ${count} produtos exibidos no filtro atual? Esta ação não pode ser desfeita.`)) {
-      const idsToDelete = new Set(filteredProducts.map(p => p.id));
-      setProducts(prev => prev.filter(p => !idsToDelete.has(p.id)));
-    }
-  }, [filteredProducts]);
+    setConfirmState({
+      isOpen: true,
+      title: 'Excluir Lista Filtrada?',
+      message: `CUIDADO: Você selecionou ${count} produto(s) através dos filtros atuais. Deseja apagar todos eles permanentemente?`,
+      variant: 'danger',
+      confirmLabel: 'Limpar Lista',
+      onConfirm: () => {
+        const idsToDelete = new Set(filteredProducts.map(p => p.id));
+        setProducts(prev => prev.filter(p => !idsToDelete.has(p.id)));
+        setSelectedIds(new Set());
+      }
+    });
+  }, [filteredProducts, products]);
 
-  const handleSellProduct = (id: string) => {
-    if (confirm('Confirmar venda deste item? Ele será removido do controle de validade.')) {
-      setProducts(prev => prev.filter(p => p.id !== id));
-    }
+  const handleConsultAI = async (product: Product) => {
+    setAiModal({ isOpen: true, productName: product.name, advice: '', loading: true });
+    const advice = await getPharmaceuticalAdvice(product.name, product.status);
+    setAiModal(prev => ({ ...prev, advice, loading: false }));
   };
 
   const handleEdit = (product: Product) => {
@@ -117,6 +251,28 @@ const App: React.FC = () => {
     setStatusFilter('');
   };
 
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = (ids: string[]) => {
+    const allSelected = ids.every(id => selectedIds.has(id));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        ids.forEach(id => next.delete(id));
+      } else {
+        ids.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
   // Keyboard Shortcuts Implementation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -129,9 +285,17 @@ const App: React.FC = () => {
         return;
       }
 
-      if (e.key === 'Escape' && showForm) {
-        setShowForm(false);
-        setEditingProduct(undefined);
+      if (e.key === 'Escape') {
+        if (showForm) {
+          setShowForm(false);
+          setEditingProduct(undefined);
+        }
+        if (confirmState.isOpen) {
+          setConfirmState(prev => ({ ...prev, isOpen: false }));
+        }
+        if (aiModal.isOpen) {
+          setAiModal(prev => ({ ...prev, isOpen: false }));
+        }
         return;
       }
 
@@ -155,12 +319,13 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showForm, handleExportPDF, handleDeleteFiltered]);
+  }, [showForm, confirmState.isOpen, aiModal.isOpen, handleExportPDF, handleDeleteFiltered]);
 
   const activeFiltersCount = [startDate, endDate, statusFilter].filter(Boolean).length;
+  const alertCount = stats.expired + stats.critical;
 
   return (
-    <Layout>
+    <Layout alertCount={alertCount} hasExpired={stats.expired > 0}>
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <Dashboard stats={stats} />
 
@@ -175,8 +340,8 @@ const App: React.FC = () => {
               <Search aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-600 w-5 h-5 group-focus-within:text-yellow-400 transition-colors" />
               <input 
                 type="text"
-                placeholder="Pesquisar por nome ou código do item..."
-                aria-label="Pesquisar produtos por nome ou código"
+                placeholder="Pesquisar por nome, código ou lote..."
+                aria-label="Pesquisar produtos por nome, código ou lote"
                 className="w-full bg-red-950/80 border-2 border-orange-800/50 rounded-xl py-3.5 pl-12 pr-4 text-yellow-300 placeholder-orange-900/60 focus:outline-none focus:ring-4 focus:ring-yellow-500/10 focus:border-yellow-500 transition-all font-bold"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -252,7 +417,7 @@ const App: React.FC = () => {
               role="region"
               aria-label="Filtros avançados"
             >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <FilterField label="Data de Início" icon={<Calendar size={14} aria-hidden="true" />} id="start-date-filter">
                   <input 
                     id="start-date-filter"
@@ -289,6 +454,34 @@ const App: React.FC = () => {
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-orange-600 pointer-events-none" size={16} aria-hidden="true" />
                   </div>
                 </FilterField>
+
+                <FilterField label="Ferramentas" icon={<Database size={14} aria-hidden="true" />} id="tools-section">
+                  <div className="flex flex-col gap-2">
+                    <button 
+                      onClick={handleDeleteSelected}
+                      disabled={selectedIds.size === 0}
+                      className={`w-full bg-orange-600/20 border-2 border-orange-600/50 rounded-lg py-2.5 px-4 text-orange-400 hover:bg-orange-600/40 transition-colors font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 ${selectedIds.size === 0 ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
+                    >
+                      <CheckSquare size={14} />
+                      Excluir Selecionados ({selectedIds.size})
+                    </button>
+                    <button 
+                      onClick={handleLoadSampleData}
+                      className="w-full bg-orange-600/20 border-2 border-orange-600/50 rounded-lg py-2.5 px-4 text-orange-300 hover:bg-orange-600/40 transition-colors font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
+                    >
+                      <Database size={14} />
+                      Carregar Exemplos
+                    </button>
+                    <button 
+                      onClick={handleDeleteExpired}
+                      disabled={stats.expired === 0}
+                      className={`w-full bg-red-600/20 border-2 border-red-600/50 rounded-lg py-2.5 px-4 text-red-300 hover:bg-red-600/40 transition-colors font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 ${stats.expired === 0 ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
+                    >
+                      <Trash2 size={14} />
+                      Limpar Vencidos
+                    </button>
+                  </div>
+                </FilterField>
               </div>
 
               <div className="flex justify-between items-center mt-8 pt-4 border-t border-white/5">
@@ -321,6 +514,11 @@ const App: React.FC = () => {
             onDelete={handleDeleteProduct}
             onSell={handleSellProduct}
             onEdit={handleEdit}
+            onConsultAI={handleConsultAI}
+            lastAddedId={lastAddedId}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+            onToggleSelectAll={handleToggleSelectAll}
           />
         </section>
       </div>
@@ -332,6 +530,24 @@ const App: React.FC = () => {
           initialData={editingProduct}
         />
       )}
+
+      <ConfirmDialog 
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onClose={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+        variant={confirmState.variant}
+        confirmLabel={confirmState.confirmLabel}
+      />
+
+      <AIAdviceModal 
+        isOpen={aiModal.isOpen}
+        onClose={() => setAiModal(prev => ({ ...prev, isOpen: false }))}
+        productName={aiModal.productName}
+        advice={aiModal.advice}
+        loading={aiModal.loading}
+      />
     </Layout>
   );
 };
